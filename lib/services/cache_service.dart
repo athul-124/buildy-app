@@ -22,7 +22,13 @@ class CacheService {
   T? get<T>(String key) {
     // First check memory cache
     if (_memoryCache.containsKey(key)) {
-      return _memoryCache[key] as T?;
+      final cached = _memoryCache[key];
+      try {
+        return cached as T?;
+      } catch (e) {
+        debugPrint('Error casting cached data: $e');
+        _memoryCache.remove(key);
+      }
     }
     
     // Then check persistent storage if available
@@ -32,20 +38,31 @@ class CacheService {
         try {
           // For simple types, just return the value
           if (T == String) {
-            return jsonString as T;
+            final result = jsonString as T;
+            _memoryCache[key] = result; // Cache in memory
+            return result;
           } else if (T == int) {
-            return int.parse(jsonString) as T;
+            final result = int.parse(jsonString) as T;
+            _memoryCache[key] = result;
+            return result;
           } else if (T == double) {
-            return double.parse(jsonString) as T;
+            final result = double.parse(jsonString) as T;
+            _memoryCache[key] = result;
+            return result;
           } else if (T == bool) {
-            return (jsonString == 'true') as T;
+            final result = (jsonString == 'true') as T;
+            _memoryCache[key] = result;
+            return result;
           }
           
-          // For complex types, we need to decode and convert
+          // For complex types, decode JSON
           final decoded = json.decode(jsonString);
+          _memoryCache[key] = decoded; // Cache in memory
           return decoded as T;
         } catch (e) {
-          debugPrint('Error parsing cached data: $e');
+          debugPrint('Error parsing cached data for key $key: $e');
+          // Remove corrupted cache entry
+          _prefs!.remove(key);
           return null;
         }
       }

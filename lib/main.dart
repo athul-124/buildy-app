@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'firebase_options.dart';
@@ -8,23 +9,35 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase with error handling
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
   
-  // Pre-warm Flutter engine
-  WidgetsBinding.instance.deferFirstFrame();
+  // Configure Firestore settings for better performance and offline support
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    
+    // Enable network for Firestore
+    await FirebaseFirestore.instance.enableNetwork();
+  } catch (e) {
+    debugPrint('Firestore settings error: $e');
+  }
   
-  // Enable Impeller on iOS (already enabled by default)
-  // Disable debug flags in release mode
+  // Disable debug flags in release mode for better performance
   if (!kDebugMode) {
     debugPrintRebuildDirtyWidgets = false;
     debugPrint = (String? message, {int? wrapWidth}) {};
+    // Disable debug painting
+    debugPaintSizeEnabled = false;
   }
-  
-  // Allow frame to be drawn
-  WidgetsBinding.instance.allowFirstFrame();
   
   runApp(const BuildlyApp());
 }

@@ -11,10 +11,14 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # Add these packages
+  # Add these packages for performance
   cached_network_image: ^3.3.0
   flutter_cache_manager: ^3.3.1
   shared_preferences: ^2.2.2
+  
+  # Additional performance packages
+  flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
 
   firebase_core: ^2.27.0
   firebase_auth: ^4.17.3

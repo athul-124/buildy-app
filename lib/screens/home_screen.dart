@@ -8,6 +8,8 @@ import '../models/service_model.dart';
 import '../models/expert_model.dart';
 import '../widgets/service_card.dart';
 import '../widgets/expert_card.dart';
+import '../widgets/skeleton_loader.dart';
+import '../services/mock_data_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,11 +52,64 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   }
   
   Future<void> _loadInitialData() async {
-    // Load services and experts in parallel
-    await Future.wait([
-      _loadServices(),
-      _loadExperts(),
-    ]);
+    try {
+      if (mounted) {
+        setState(() {
+          _isLoadingServices = true;
+          _isLoadingExperts = true;
+        });
+      }
+
+      // Use the optimized combined method with timeout
+      final homeData = await _firebaseService.getHomeData().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () async {
+          debugPrint('Firebase timeout, falling back to mock data');
+          return await MockDataService.getHomeData();
+        },
+      );
+      
+      if (mounted) {
+        setState(() {
+          _popularServices = homeData.services;
+          _featuredExperts = homeData.experts;
+          _isLoadingServices = false;
+          _isLoadingExperts = false;
+          
+          // Store the last document for pagination
+          if (homeData.experts.isNotEmpty && homeData.experts.last.reference != null) {
+            _lastExpertDoc = homeData.experts.last.reference as DocumentSnapshot?;
+          }
+          
+          // Show success message if we got data
+          if (homeData.services.isNotEmpty || homeData.experts.isNotEmpty) {
+            debugPrint('Successfully loaded ${homeData.services.length} services and ${homeData.experts.length} experts');
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading initial data: $e');
+      
+      if (mounted) {
+        setState(() {
+          _isLoadingServices = false;
+          _isLoadingExperts = false;
+        });
+        
+        // Show error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to load data. Using offline content.'),
+            backgroundColor: AppTheme.warning,
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _loadInitialData,
+              textColor: Colors.white,
+            ),
+          ),
+        );
+      }
+    }
   }
   
   Future<void> _loadServices() async {
@@ -166,23 +221,39 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _loadInitialData,
-        child: ListView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            _buildHeader(),
-            _buildSearchBar(),
-            _buildQuickActions(),
-            _buildPopularServices(),
-            _buildFeaturedExperts(),
-            if (_isLoadingMoreExperts)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-          ],
+      backgroundColor: AppTheme.backgroundLight,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadInitialData,
+          color: AppTheme.primaryColor,
+          backgroundColor: Colors.white,
+          strokeWidth: 3,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 16),
+                _buildSearchBar(),
+                const SizedBox(height: 8),
+                _buildQuickActions(),
+                _buildPopularServices(),
+                _buildFeaturedExperts(),
+                if (_isLoadingMoreExperts)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 120), // Extra space for bottom navigation
+              ],
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNavigation(),
@@ -194,38 +265,76 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       builder: (context, authService, _) {
         final user = authService.currentUserModel;
         return Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppTheme.primaryColor.withOpacity(0.05),
+                AppTheme.secondaryColor.withOpacity(0.03),
+              ],
+            ),
+          ),
           child: Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Hello, ${user?.name ?? 'User'}!',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      'Hello, ${user?.name ?? 'User'}! 👋',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'What service do you need today?',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => _showProfileOptions(),
-                icon: CircleAvatar(
-                  backgroundColor: AppTheme.primaryColor,
-                  child: Text(
-                    user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTap: () => _showProfileOptions(),
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: AppTheme.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withOpacity(0.2),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundColor: Colors.white,
+                    child: Text(
+                      user?.name?.substring(0, 1).toUpperCase() ?? 'U',
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -242,21 +351,58 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: TextField(
           decoration: InputDecoration(
             hintText: 'Search for services or experts...',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: () {
-                // TODO: Show filter options
-              },
+            hintStyle: TextStyle(
+              color: AppTheme.textSecondary,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Container(
+              padding: const EdgeInsets.all(12),
+              child: Icon(
+                Icons.search_rounded,
+                color: AppTheme.primaryColor,
+                size: 24,
+              ),
+            ),
+            suffixIcon: Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  Icons.tune_rounded,
+                  color: AppTheme.primaryColor,
+                  size: 20,
+                ),
+                onPressed: () {
+                  // TODO: Show filter options
+                },
+              ),
             ),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            enabledBorder: InputBorder.none,
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(
+                color: AppTheme.primaryColor,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           ),
           onTap: () {
             // TODO: Navigate to search screen
@@ -268,10 +414,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   Widget _buildQuickActions() {
     final actions = [
-      {'icon': Icons.electrical_services, 'label': 'Electrical', 'color': AppTheme.primaryColor},
-      {'icon': Icons.plumbing, 'label': 'Plumbing', 'color': AppTheme.secondaryColor},
-      {'icon': Icons.carpenter, 'label': 'Carpentry', 'color': AppTheme.accentColor},
-      {'icon': Icons.cleaning_services, 'label': 'Cleaning', 'color': Colors.purple},
+      {'icon': Icons.electrical_services_rounded, 'label': 'Electrical', 'color': AppTheme.primaryColor},
+      {'icon': Icons.plumbing_rounded, 'label': 'Plumbing', 'color': AppTheme.secondaryColor},
+      {'icon': Icons.carpenter_rounded, 'label': 'Carpentry', 'color': AppTheme.accentColor},
+      {'icon': Icons.cleaning_services_rounded, 'label': 'Cleaning', 'color': AppTheme.warning},
     ];
 
     return Padding(
@@ -279,13 +425,36 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Quick Actions',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  // TODO: Navigate to all categories
+                },
+                icon: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: AppTheme.primaryColor,
+                ),
+                label: Text(
+                  'See All',
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: actions.map((action) {
@@ -302,33 +471,66 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   }
 
   Widget _buildQuickActionCard(IconData icon, String label, Color color) {
-    return GestureDetector(
-      onTap: () {
-        // TODO: Navigate to category screen
-      },
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          // TODO: Navigate to category screen
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color,
+                      color.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -347,13 +549,50 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           ),
           const SizedBox(height: 16),
           _isLoadingServices
-              ? const Center(child: CircularProgressIndicator())
+              ? SizedBox(
+                  height: 180,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 3, // Show 3 skeleton cards
+                    itemBuilder: (context, index) {
+                      return const ServiceCardSkeleton();
+                    },
+                  ),
+                )
               : _popularServices.isEmpty
-                  ? const Center(child: Text('No services available'))
+                  ? Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off_rounded,
+                              size: 32,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No services available',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : SizedBox(
-                      height: 180,
+                      height: 200,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
                         itemCount: _popularServices.length,
                         itemBuilder: (context, index) {
                           return ServiceCard(service: _popularServices[index]);
@@ -389,51 +628,121 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             ],
           ),
           const SizedBox(height: 16),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _featuredExperts.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: index == _featuredExperts.length - 1 ? 0 : 16,
-                ),
-                child: ExpertCard(expert: _featuredExperts[index]),
-              );
-            },
-          ),
+          _isLoadingExperts
+              ? Column(
+                  children: List.generate(3, (index) => const ExpertCardSkeleton()),
+                )
+              : _featuredExperts.isEmpty
+                  ? Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_search_rounded,
+                              size: 32,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No experts available',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _featuredExperts.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == _featuredExperts.length - 1 ? 0 : 16,
+                          ),
+                          child: ExpertCard(expert: _featuredExperts[index]),
+                        );
+                      },
+                    ),
         ],
       ),
     );
   }
 
   Widget _buildBottomNavigation() {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppTheme.primaryColor,
-      unselectedItemColor: Colors.grey,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              _buildNavItem(Icons.home_rounded, 'Home', true),
+              _buildNavItem(Icons.search_rounded, 'Search', false),
+              _buildNavItem(Icons.bookmark_rounded, 'Bookings', false),
+              _buildNavItem(Icons.chat_rounded, 'Chat', false),
+              _buildNavItem(Icons.person_rounded, 'Profile', false),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.search),
-          label: 'Search',
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          // TODO: Handle navigation
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primaryColor.withOpacity(0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary,
+                size: 22,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary,
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.bookmark),
-          label: 'Bookings',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat),
-          label: 'Chat',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
+      ),
     );
   }
 
