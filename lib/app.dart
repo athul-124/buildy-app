@@ -9,6 +9,7 @@ import 'services/firebase_service.dart';
 import 'services/data_service.dart';
 import 'services/cache_service.dart';
 import 'services/booking_service.dart';
+import 'services/payment_service.dart';
 
 class BuildlyApp extends StatelessWidget {
   const BuildlyApp({super.key});
