@@ -98,6 +98,8 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
           _buildStepCircle(1, 'Details'),
           _buildStepLine(1),
           _buildStepCircle(2, 'Review'),
+          _buildStepLine(2),
+          _buildStepCircle(3, 'Payment'),
         ],
       ),
     );
