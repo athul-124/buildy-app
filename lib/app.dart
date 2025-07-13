@@ -23,6 +23,7 @@ class BuildlyApp extends StatelessWidget {
         Provider(create: (_) => DataService()),
         Provider(create: (_) => CacheService()),
         ChangeNotifierProvider(create: (_) => BookingService()),
+        ChangeNotifierProvider(create: (_) => PaymentService()),
       ],
       child: Consumer<AuthService>(
         builder: (context, authService, _) {
