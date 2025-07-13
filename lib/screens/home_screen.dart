@@ -750,7 +750,36 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          // TODO: Handle navigation
+          if (isSelected) return;
+            
+          // Handle navigation based on label
+          switch (label) {
+            case 'Home':
+              // Already on home
+              break;
+            case 'Search':
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchScreen(),
+                ),
+              );
+              break;
+            case 'Bookings':
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BookingsScreen(),
+                ),
+              );
+              break;
+            case 'Chat':
+              // TODO: Navigate to chat screen
+              break;
+            case 'Profile':
+              // TODO: Navigate to profile screen
+              break;
+          }
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
