@@ -408,7 +408,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           ),
           onTap: () {
-            // TODO: Navigate to search screen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SearchScreen(),
+              ),
+            );
           },
         ),
       ),
