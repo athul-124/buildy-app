@@ -603,7 +603,19 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         physics: const BouncingScrollPhysics(),
                         itemCount: _popularServices.length,
                         itemBuilder: (context, index) {
-                          return ServiceCard(service: _popularServices[index]);
+                          return ServiceCard(
+                            service: _popularServices[index],
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ServiceDetailScreen(
+                                    service: _popularServices[index],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
                         },
                       ),
                     ),
