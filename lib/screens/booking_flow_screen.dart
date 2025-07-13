@@ -168,6 +168,8 @@ class _BookingFlowScreenState extends State<BookingFlowScreen> {
         return _buildDetailsStep();
       case 2:
         return _buildReviewStep();
+      case 3:
+        return _buildPaymentStep();
       default:
         return _buildDateTimeStep();
     }
