@@ -5,12 +5,15 @@ import '../config/theme.dart';
 
 class ExpertCard extends StatelessWidget {
   final Expert expert;
+  final VoidCallback? onTap;
 
-  const ExpertCard({super.key, required this.expert});
+  const ExpertCard({super.key, required this.expert, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
