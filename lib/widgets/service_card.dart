@@ -5,12 +5,15 @@ import '../config/theme.dart';
 
 class ServiceCard extends StatelessWidget {
   final Service service;
+  final VoidCallback? onTap;
 
-  const ServiceCard({super.key, required this.service});
+  const ServiceCard({super.key, required this.service, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       width: 160,
       margin: const EdgeInsets.only(right: 16),
       decoration: BoxDecoration(
