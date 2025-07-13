@@ -690,18 +690,23 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           padding: EdgeInsets.only(
                             bottom: index == _featuredExperts.length - 1 ? 0 : 16,
                           ),
-                          child: ExpertCard(
-                            expert: _featuredExperts[index],
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ExpertDetailScreen(
-                                    expert: _featuredExperts[index],
-                                  ),
-                                ),
-                              );
-                            },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ExpertCard(
+                                expert: _featuredExperts[index],
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ExpertDetailScreen(
+                                        expert: _featuredExperts[index],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         );
                       },
