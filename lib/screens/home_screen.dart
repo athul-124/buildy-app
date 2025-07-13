@@ -10,6 +10,9 @@ import '../widgets/service_card.dart';
 import '../widgets/expert_card.dart';
 import '../widgets/skeleton_loader.dart';
 import '../services/mock_data_service.dart';
+import 'service_detail_screen.dart';
+import 'expert_detail_screen.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
